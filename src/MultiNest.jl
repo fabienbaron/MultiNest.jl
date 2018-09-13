@@ -1,6 +1,6 @@
 module MultiNest
 import Base: run
-
+import Libdl  
 export nested
 
 # find the symbol to invoke MultiNest
@@ -14,7 +14,7 @@ function nested_symbol()
     names_mpi = [ "libmultinest_mpi", "libnest3_mpi" ]
 
     # check whether `const MULTINEST_MPI = true` was defined in parent module
-    mpi = isdefined(module_parent(current_module()), :MULTINEST_MPI) && module_parent(current_module()).MULTINEST_MPI
+    mpi = isdefined(parentmodule(@__MODULE__), :MULTINEST_MPI) && parentmodule(@__MODULE__).MULTINEST_MPI
 
     # try find library on DL_LOAD_PATH
     lib = Libdl.find_library(mpi ? names_mpi : names, ["/usr/local/lib", "/usr/lib"])
@@ -33,7 +33,12 @@ function nested_symbol()
     error("cannot link MultiNest library, check symbol table")
 end
 
+
+
+
+
 # symbol that runs MultiNest
+
 const libmultinest, nestrun = nested_symbol()
 
 # convert to Fortran logical
@@ -42,7 +47,7 @@ const libmultinest, nestrun = nested_symbol()
 #end
 
 # this holds all the information to run MultiNest
-immutable Nested
+struct Nested
     ins::Cint
     mmodal::Cint
     ceff::Cint
@@ -75,7 +80,7 @@ function nested_loglike(
     ndim_::Ptr{Cint},
     npar_::Ptr{Cint},
     lnew_::Ptr{Cdouble},
-    nested_::Ptr{Void}
+    nested_::Ptr{nothing}
 )
     ndim = unsafe_load(ndim_)
     npar = unsafe_load(npar_)
@@ -98,7 +103,7 @@ function nested_dumper(
     logz_::Ptr{Cdouble},
     inslogz_::Ptr{Cdouble},
     logzerr_::Ptr{Cdouble},
-    nested_::Ptr{Void}
+    nested_::Ptr{Nothing}
 )
     nsamples = unsafe_load(nsamples_)
     nlive = unsafe_load(nlive_)
@@ -160,7 +165,7 @@ function nested(
     context = ()
 )
 
-    # create root dir if necessary (avoid Fortran runtime error)
+    # create root dir if necessary (aNothing Fortran runtime error)
     root_dir = dirname(root)
     if !isdir(root_dir)
         mkdir(root_dir)
@@ -198,25 +203,25 @@ end
 # run MultiNest
 @eval begin
     function run(n::Nested)
-        loglike_c = cfunction(nested_loglike, Void, (
-            Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Void}
+        loglike_c = cfunction(nested_loglike, Nothing, (
+            Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{Nothing}
         ))
 
-        dumper_c = cfunction(nested_dumper, Void, (
+        dumper_c = cfunction(nested_dumper, Nothing, (
             Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Ptr{Cdouble}},
             Ptr{Ptr{Cdouble}}, Ptr{Ptr{Cdouble}}, Ptr{Cdouble},
-            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Void}
+            Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Nothing}
         ))
 
-        ccall((nestrun,libmultinest), Void, ( Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
+        ccall((nestrun,libmultinest), Nothing, ( Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
               Ptr{Cint}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cint}, Ptr{Cint},
               Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cdouble}, Ptr{UInt8},
               Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
-              Ptr{Cdouble}, Ptr{Cint}, Ptr{Void}, Ptr{Void}, Any ),
-              &n.ins, &n.mmodal, &n.ceff, &n.nlive, &n.tol, &n.efr,
-              &n.ndim, &n.npar, &n.nclspar, &n.maxmodes, &n.updint, &n.ztol,
-              n.root, &n.seed, n.wrap, &n.fb, &n.resume, &n.outfile, &n.initmpi,
-              &n.logzero, &n.maxiter, loglike_c, dumper_c, n)
+              Ptr{Cdouble}, Ptr{Cint}, Ptr{Nothing}, Ptr{Nothing}, Any ),
+              Ref(n.ins), Ref(n.mmodal), Ref(n.ceff), Ref(n.nlive), Ref(n.tol), Ref(n.efr),
+              Ref(n.ndim), Ref(n.npar), Ref(n.nclspar), Ref(n.maxmodes), Ref(n.updint), Ref(n.ztol),
+              n.root, Ref(n.seed), n.wrap, Ref(n.fb), Ref(n.resume), Ref(n.outfile), Ref(n.initmpi),
+              Ref(n.logzero), Ref(n.maxiter), loglike_c, dumper_c, n)
     end
 end
 
